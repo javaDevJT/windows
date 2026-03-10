@@ -2,6 +2,9 @@ name: Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
 
 concurrency:
   group: build
@@ -16,7 +19,6 @@ jobs:
     needs: shellcheck
     runs-on: ubuntu-latest
     permissions:
-      actions: write
       packages: write
       contents: read
     steps:
@@ -30,33 +32,24 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          context: git
-          images: |
-            ${{ secrets.DOCKERHUB_REPO }}
-            ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,priority=100
-            type=raw,value=${{ vars.MAJOR }}.${{ vars.MINOR }}
+            type=sha,prefix=sha-,format=short
           labels: |
-            org.opencontainers.image.title=${{ vars.NAME }}
+            org.opencontainers.image.title=Windows
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-      - 
+      -
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      -
-        name: Login into Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       -
         name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PAT }}
       -
         name: Build Docker image
         uses: docker/build-push-action@v6
@@ -70,34 +63,3 @@ jobs:
           annotations: ${{ steps.meta.outputs.annotations }}
           build-args: |
             VERSION_ARG=${{ steps.meta.outputs.version }}
-      -
-        name: Create a release
-        uses: action-pack/github-release@v2
-        with:
-          tag: "v${{ steps.meta.outputs.version }}"
-          title: "v${{ steps.meta.outputs.version }}"
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
-      -
-        name: Increment version variable
-        uses: action-pack/bump@v2
-        with:
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
-      -
-        name: Push to Gitlab mirror
-        uses: action-pack/gitlab-sync@v3
-        with:
-          url: ${{ secrets.GITLAB_URL }}
-          token: ${{ secrets.GITLAB_TOKEN }}
-          username: ${{ secrets.GITLAB_USERNAME }}
-      -
-        name: Send mail
-        uses: action-pack/send-mail@v1
-        with:
-          to: ${{secrets.MAILTO}}
-          from: Github Actions <${{secrets.MAILTO}}>
-          connection_url: ${{secrets.MAIL_CONNECTION}}
-          subject: Build of ${{ github.event.repository.name }} v${{ steps.meta.outputs.version }} completed
-          body: |
-              The build job of ${{ github.event.repository.name }} v${{ steps.meta.outputs.version }} was completed successfully! 
-              
-              See https://github.com/${{ github.repository }}/actions for more information.

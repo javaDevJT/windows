@@ -201,6 +201,69 @@ writeFile() {
   return 0
 }
 
+configureSMBIOS() {
+
+  local file="$STORAGE/windows.smbios"
+  local args serial
+  local bios_vendor bios_version
+  local sys_manufacturer sys_product sys_family sys_sku
+  local board_manufacturer board_product
+
+  if [ -s "$file" ] && [ -f "$file" ]; then
+    args=$(<"$file")
+    args="${args//[![:print:]]/}"
+    [ -n "$args" ] && ARGUMENTS="${ARGUMENTS:+$ARGUMENTS }$args"
+    return 0
+  fi
+
+  [[ "${SMBIOS_BRAND,,}" == "none" || "${SMBIOS_BRAND,,}" == "off" ]] && return 0
+
+  case "${SMBIOS_BRAND,,}" in
+    "hp" )
+      bios_vendor="HP"
+      bios_version="Q78Ver01.19.00"
+      sys_manufacturer="HP"
+      sys_product="EliteDesk800G5SFF"
+      sys_family="EliteDesk"
+      sys_sku="8QC37AV"
+      board_manufacturer="HP"
+      board_product="8648"
+      ;;
+    "lenovo" )
+      bios_vendor="LENOVO"
+      bios_version="M2UKT50P"
+      sys_manufacturer="LENOVO"
+      sys_product="ThinkCentre-M920s"
+      sys_family="ThinkCentre"
+      sys_sku="LENOVO_MT_10RJ"
+      board_manufacturer="LENOVO"
+      board_product="3136"
+      ;;
+    * )
+      bios_vendor="Dell"
+      bios_version="1.15.0"
+      sys_manufacturer="Dell"
+      sys_product="OptiPlex7090"
+      sys_family="OptiPlex"
+      sys_sku="OptiPlex7090"
+      board_manufacturer="Dell"
+      board_product="0GDG8Y"
+      ;;
+  esac
+
+  serial=$(head -c 8 /dev/urandom | od -A n -t x1 | tr -d ' \n' | tr '[:lower:]' '[:upper:]' | cut -c1-8)
+
+  args="-smbios type=0,vendor=$bios_vendor,version=$bios_version"
+  args+=" -smbios type=1,manufacturer=$sys_manufacturer,product=$sys_product,serial=$serial,sku=$sys_sku,family=$sys_family"
+  args+=" -smbios type=2,manufacturer=$board_manufacturer,product=$board_product,serial=$serial"
+  args+=" -smbios type=3,manufacturer=$sys_manufacturer"
+
+  ARGUMENTS="${ARGUMENTS:+$ARGUMENTS }$args"
+  writeFile "$args" "$file"
+
+  return 0
+}
+
 finishInstall() {
 
   local iso="$1"
@@ -286,6 +349,8 @@ finishInstall() {
     file="$STORAGE/windows.net"
     writeFile "$ADAPTER" "$file"
   fi
+
+  configureSMBIOS
 
   rm -rf "$TMP"
   return 0
@@ -847,12 +912,25 @@ updateXML() {
 
   local asset="$1"
   local language="$2"
-  local culture region user admin pass keyboard
+  local culture region user admin pass keyboard oem_mfr
 
   [ -z "$HEIGHT" ] && HEIGHT="720"
   [ -z "$WIDTH" ] && WIDTH="1280"
 
   sed -i "s/>Windows for Docker</>$APP for $ENGINE</g" "$asset"
+
+  case "${SMBIOS_BRAND,,}" in
+    "hp" ) oem_mfr="HP" ;;
+    "lenovo" ) oem_mfr="Lenovo" ;;
+    "none" | "off" ) oem_mfr="" ;;
+    * ) oem_mfr="Dell Inc." ;;
+  esac
+
+  if [ -n "$oem_mfr" ]; then
+    sed -i "s/<Manufacturer>Dockur<\/Manufacturer>/<Manufacturer>$oem_mfr<\/Manufacturer>/g" "$asset"
+    sed -i "s/<RegisteredOrganization>Dockur<\/RegisteredOrganization>/<RegisteredOrganization>$oem_mfr<\/RegisteredOrganization>/g" "$asset"
+    sed -i "s/<SupportProvider>Dockur<\/SupportProvider>/<SupportProvider>$oem_mfr<\/SupportProvider>/g" "$asset"
+  fi
   sed -i "s/<VerticalResolution>1080<\/VerticalResolution>/<VerticalResolution>$HEIGHT<\/VerticalResolution>/g" "$asset"
   sed -i "s/<HorizontalResolution>1920<\/HorizontalResolution>/<HorizontalResolution>$WIDTH<\/HorizontalResolution>/g" "$asset"
 
@@ -1276,6 +1354,8 @@ bootWindows() {
       MACHINE="${MACHINE//[![:print:]]/}"
     fi
   fi
+
+  configureSMBIOS
 
   return 0
 }

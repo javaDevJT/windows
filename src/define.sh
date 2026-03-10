@@ -15,6 +15,7 @@ set -Eeuo pipefail
 : "${LANGUAGE:=""}"
 : "${USERNAME:=""}"
 : "${PASSWORD:=""}"
+: "${SMBIOS_BRAND:=""}"
 
 MIRRORS=4
 
