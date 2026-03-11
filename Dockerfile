@@ -125,5 +125,6 @@ ENV DISK_SIZE="64G"
 # Use Intel e1000e NIC instead of virtio-net-pci to avoid any VID 0x1AF4 leakage
 # even before the PCI ID spoofing takes effect at the driver enumeration stage.
 ENV ADAPTER="e1000e"
+ENV VGA="std"
 
 ENTRYPOINT ["/usr/bin/tini", "-s", "/run/entry.sh"]
