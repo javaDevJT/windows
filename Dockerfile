@@ -56,7 +56,8 @@ RUN ./configure \
         --disable-xen \
         --enable-kvm && \
     make -j"$(nproc)" && \
-    strip build/qemu-system-x86_64
+    make install && \
+    strip /usr/bin/qemu-system-x86_64
 
 # ── Stage 1: Main amd64 image ─────────────────────────────────────────────────
 FROM scratch AS build-amd64
@@ -72,7 +73,8 @@ COPY --from=qemux/qemu:7.29 / /
 #   - SMBIOS: VM-present bit cleared, manufacturer/product spoofed
 #   - EDID monitor: "RHT"/"QEMU Monitor" → "DEL"/"DEL Monitor"
 #   - KVM CPUID leaf: "KVMKVMKVM" → "GenuineIntel" (in addition to hv_vendor_id= arg)
-COPY --from=qemu-builder /build/qemu-8.2.2/build/qemu-system-x86_64 /usr/bin/qemu-system-x86_64
+COPY --from=qemu-builder /usr/bin/qemu-system-x86_64 /usr/bin/qemu-system-x86_64
+COPY --from=qemu-builder /usr/share/qemu/ /usr/share/qemu/
 
 ARG TARGETARCH
 ARG DEBCONF_NOWARNINGS="yes"
