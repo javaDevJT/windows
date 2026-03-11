@@ -201,6 +201,36 @@ writeFile() {
   return 0
 }
 
+configureMAC() {
+
+  local file="$STORAGE/windows.mac"
+  local mac mac_suffix
+
+  if [ -s "$file" ] && [ -f "$file" ]; then
+    mac=$(<"$file")
+    mac="${mac//[![:print:]]/}"
+    if [ -n "$mac" ]; then
+      [ -z "${MAC:-}" ] && MAC="$mac"
+      [ -z "${VM_NET_MAC:-}" ] && VM_NET_MAC="$mac"
+    fi
+    return 0
+  fi
+
+  # Skip if the user already supplied a MAC address
+  [ -n "${MAC:-}" ] && return 0
+  [ -n "${VM_NET_MAC:-}" ] && return 0
+
+  # Generate a MAC using Intel's OUI (F0:DE:F1) so it passes OUI checks
+  mac_suffix=$(head -c 3 /dev/urandom | od -A n -t x1 | tr -d ' \n' | tr '[:lower:]' '[:upper:]' | cut -c1-6)
+  mac="F0:DE:F1:${mac_suffix:0:2}:${mac_suffix:2:2}:${mac_suffix:4:2}"
+
+  MAC="$mac"
+  VM_NET_MAC="$mac"
+  writeFile "$mac" "$file"
+
+  return 0
+}
+
 configureSMBIOS() {
 
   local file="$STORAGE/windows.smbios"
@@ -208,6 +238,8 @@ configureSMBIOS() {
   local bios_vendor bios_version
   local sys_manufacturer sys_product sys_family sys_sku
   local board_manufacturer board_product
+  local cpu_manufacturer cpu_version
+  local mem_manufacturer mem_part
 
   if [ -s "$file" ] && [ -f "$file" ]; then
     args=$(<"$file")
@@ -251,12 +283,23 @@ configureSMBIOS() {
       ;;
   esac
 
+  cpu_manufacturer="Intel"
+  cpu_version="IntelCorei7-10700"
+  mem_manufacturer="Kingston"
+  mem_part="KVR32N22D8/32"
+
   serial=$(head -c 8 /dev/urandom | od -A n -t x1 | tr -d ' \n' | tr '[:lower:]' '[:upper:]' | cut -c1-8)
 
-  args="-smbios type=0,vendor=$bios_vendor,version=$bios_version"
+  # -cpu host,... must come first: proc.sh extracts flags before the first
+  # space and merges them into its own CPU string, so kvm=off/-hypervisor
+  # override proc.sh's kvm=on/+hypervisor without replacing the full config.
+  args="-cpu host,kvm=off,-hypervisor,hv_vendor_id=GenuineIntel"
+  args+=" -smbios type=0,vendor=$bios_vendor,version=$bios_version,date=01/01/2021,release=1.15"
   args+=" -smbios type=1,manufacturer=$sys_manufacturer,product=$sys_product,serial=$serial,sku=$sys_sku,family=$sys_family"
   args+=" -smbios type=2,manufacturer=$board_manufacturer,product=$board_product,serial=$serial"
   args+=" -smbios type=3,manufacturer=$sys_manufacturer"
+  args+=" -smbios type=4,manufacturer=$cpu_manufacturer,version=$cpu_version"
+  args+=" -smbios type=17,manufacturer=$mem_manufacturer,loc_pfx=DIMM,speed=3200,serial=00000000,part=$mem_part"
 
   ARGUMENTS="${ARGUMENTS:+$ARGUMENTS }$args"
   writeFile "$args" "$file"
@@ -340,6 +383,10 @@ finishInstall() {
     writeFile "$USB" "$file"
   fi
 
+  # Default to SATA/AHCI for new installs to avoid VirtIO PCI vendor exposure.
+  # Only applies when the user has not explicitly set DISK_TYPE.
+  [ -z "${DISK_TYPE:-}" ] && DISK_TYPE="sata"
+
   if [ -n "${DISK_TYPE:-}" ] && [[ "${DISK_TYPE:-}" != "scsi" ]]; then
     file="$STORAGE/windows.type"
     writeFile "$DISK_TYPE" "$file"
@@ -350,6 +397,7 @@ finishInstall() {
     writeFile "$ADAPTER" "$file"
   fi
 
+  configureMAC
   configureSMBIOS
 
   rm -rf "$TMP"
@@ -1355,6 +1403,7 @@ bootWindows() {
     fi
   fi
 
+  configureMAC
   configureSMBIOS
 
   return 0
