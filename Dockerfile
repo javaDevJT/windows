@@ -29,20 +29,19 @@ WORKDIR /build
 # Download QEMU 8.2.2 source (8.2.0 patch is compatible with 8.2.x series)
 RUN wget -q https://download.qemu.org/qemu-8.2.2.tar.xz && \
     tar xf qemu-8.2.2.tar.xz && \
-    rm qemu-8.2.2.tar.xz
+    rm qemu-8.2.2.tar.xz && \
+    wget -q -O anti-detection.patch \
+        https://raw.githubusercontent.com/zhaodice/qemu-anti-detection/main/qemu-8.2.0.patch
 
-# Download and apply the anti-detection patch
-RUN wget -q -O anti-detection.patch \
-    https://raw.githubusercontent.com/zhaodice/qemu-anti-detection/main/qemu-8.2.0.patch
+# Switch into the source tree so subsequent RUN steps don't need cd (DL3003)
+WORKDIR /build/qemu-8.2.2
 
 # git init is required for git apply to work on a non-repo directory
-RUN cd qemu-8.2.2 && \
-    git init -q && \
-    git apply ../anti-detection.patch
+RUN git init -q && \
+    git apply /build/anti-detection.patch
 
 # Build only the x86_64 target to minimize compile time (~10-20 min on CI)
-RUN cd qemu-8.2.2 && \
-    ./configure \
+RUN ./configure \
         --target-list=x86_64-softmmu \
         --disable-docs \
         --disable-tests \
@@ -57,7 +56,7 @@ RUN cd qemu-8.2.2 && \
         --disable-xen \
         --disable-slirp \
         --enable-kvm && \
-    make -j$(nproc) && \
+    make -j"$(nproc)" && \
     strip build/qemu-system-x86_64
 
 # ── Stage 1: Main amd64 image ─────────────────────────────────────────────────
