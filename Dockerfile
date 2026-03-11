@@ -87,6 +87,11 @@ RUN set -eu && \
     apt-get update && \
     apt-get --no-install-recommends -y install \
         libepoxy0 \
+        libgbm1 \
+        libdrm2 \
+        libaio1t64 \
+        libglib2.0-0t64 \
+        libpixman-1-0 \
         samba \
         wimtools \
         dos2unix \
