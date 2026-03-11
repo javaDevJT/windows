@@ -13,6 +13,7 @@ ARG DEBCONF_NONINTERACTIVE_SEEN="true"
 RUN set -eu && \
     apt-get update && \
     apt-get --no-install-recommends -y install \
+        python3-minimal \
         samba \
         wimtools \
         dos2unix \
@@ -23,6 +24,44 @@ RUN set -eu && \
     dpkg -i /tmp/wsddn.deb && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Binary-patch QEMU to remove VM identity strings visible to guest applications.
+# All replacements are the same byte length to preserve binary integrity.
+RUN <<'PYEOF'
+#!/usr/bin/env python3
+import os, sys
+
+path = '/usr/bin/qemu-system-x86_64'
+if not os.path.exists(path):
+    print(f'WARNING: {path} not found, skipping QEMU identity patch', file=sys.stderr)
+    sys.exit(0)
+
+patches = [
+    # ACPI OEM ID field (6 bytes): eliminates "BOCHS " in firmware tables
+    (b'BOCHS ',        b'INTEL '),
+    # ACPI OEM Table ID field (8 bytes): eliminates "BXPC" in firmware tables
+    (b'BXPC    ',      b'PC8086  '),
+    # ACPI _HID for fw_cfg device: eliminates ACPI\QEMU0002 registry key
+    (b'QEMU0002',      b'ASUS0002'),
+    # IDE/AHCI disk model string: eliminates "QEMU HARDDISK" from SMART/WMI
+    (b'QEMU HARDDISK', b'ASUS HARDDISK'),
+    # Optical drive model strings
+    (b'QEMU DVD-ROM',  b'ASUS DVD-ROM'),
+    (b'QEMU CD-ROM',   b'ASUS CD-ROM'),
+]
+
+data = open(path, 'rb').read()
+total = 0
+for old, new in patches:
+    assert len(old) == len(new), f'Length mismatch: {old!r} vs {new!r}'
+    count = data.count(old)
+    data = data.replace(old, new)
+    total += count
+    print(f'  [{count:2d}x] {old!r} -> {new!r}', file=sys.stderr)
+
+open(path, 'wb').write(data)
+print(f'QEMU binary patched ({total} replacements total)', file=sys.stderr)
+PYEOF
 
 COPY --chmod=755 ./src /run/
 COPY --chmod=755 ./assets /run/assets
