@@ -44,8 +44,6 @@ RUN git init -q && \
 RUN ./configure \
         --target-list=x86_64-softmmu \
         --disable-docs \
-        --disable-tests \
-        --disable-tools \
         --disable-guest-agent \
         --disable-vnc \
         --disable-sdl \
@@ -54,7 +52,6 @@ RUN ./configure \
         --disable-opengl \
         --disable-pa \
         --disable-xen \
-        --disable-slirp \
         --enable-kvm && \
     make -j"$(nproc)" && \
     strip build/qemu-system-x86_64
