@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libepoxy-dev \
     libdrm-dev \
     libgbm-dev \
+    libusb-1.0-0-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -56,7 +57,8 @@ RUN ./configure \
         --disable-curses \
         --disable-pa \
         --disable-xen \
-        --enable-kvm && \
+        --enable-kvm \
+        --enable-libusb && \
     make -j"$(nproc)" && \
     make install && \
     strip /usr/bin/qemu-system-x86_64
@@ -92,6 +94,7 @@ RUN set -eu && \
         libaio1t64 \
         libglib2.0-0t64 \
         libpixman-1-0 \
+        libusb-1.0-0 \
         samba \
         wimtools \
         dos2unix \
