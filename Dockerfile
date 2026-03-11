@@ -44,6 +44,7 @@ RUN git init -q && \
 
 # Build only the x86_64 target to minimize compile time (~10-20 min on CI)
 RUN ./configure \
+        --prefix=/usr \
         --target-list=x86_64-softmmu \
         --disable-docs \
         --disable-guest-agent \
