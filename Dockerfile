@@ -46,7 +46,6 @@ RUN ./configure \
         --target-list=x86_64-softmmu \
         --disable-docs \
         --disable-guest-agent \
-        --disable-vnc \
         --disable-sdl \
         --disable-gtk \
         --disable-curses \
