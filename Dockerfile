@@ -24,6 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     flex \
     bison \
     libaio-dev \
+    libepoxy-dev \
+    libdrm-dev \
+    libgbm-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -51,7 +54,6 @@ RUN ./configure \
         --disable-sdl \
         --disable-gtk \
         --disable-curses \
-        --disable-opengl \
         --disable-pa \
         --disable-xen \
         --enable-kvm && \
